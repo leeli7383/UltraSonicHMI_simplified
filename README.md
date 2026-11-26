@@ -42,6 +42,12 @@ python -m aqt install-tool windows desktop tools_mingw81 qt.tools.win64_mingw810
 
 使用 Qt Creator 时，可从已激活的 Conda 环境打开 `UltraSonicHMI/UltraSonicHMI.pro`，为其选择 Qt 5.15.2 / MinGW 8.1 x64 Kit 并使用独立构建目录。若 Creator 独立启动，可在 qmake 参数中通过 `FFTW_PREFIX` 指定 Conda 环境目录，同时在运行环境的 `PATH` 中加入该目录下的 `Library/bin`。
 
+## 离线波形演示
+
+构建完成后，双击 UltraSonicHMI.exe，在「波形显示」页点击「加载」，选择与 exe 同目录的 ultrasonic-demo.hex。项目的 examples 目录中也有原样本。回放可显示 12 路带模拟回波的时域波形，随后点击「FFT关」可切换至频谱。
+
+样本由 examples/generate_demo.py 生成，包含 12 路、每路 4096 点，大小为 98,584 字节。文件是程序可读取的二进制 HEX 帧，振幅和回波均为合成数据。横轴沿用上位机当前配置的采样间隔。
+
 ## 基本使用
 
 - 主窗口可以在未连接采集板卡时打开。接入板卡前，在界面确认目标地址、目标端口和本机监听端口，使其匹配设备配置。

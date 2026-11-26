@@ -16,6 +16,7 @@ qrc_*.cpp
 object_script.*
 *.ini
 *.hex
+!/examples/ultrasonic-demo.hex
 *.o
 *.obj
 *.dll

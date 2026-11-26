@@ -45,6 +45,13 @@ public:
     };
 
     //QVector<double> vf8VoltageCh[MAX_CH_CNT];  // 创建包含13个QVector的数组
+    static constexpr int SamplesPerChannel = 4096;
+    static constexpr int WaveformHeaderBytes = 258;
+    static constexpr int ChannelGapBytes = 2;
+    static constexpr int WaveformFrameBytes = WaveformHeaderBytes
+        + MAX_CH_CNT * SamplesPerChannel * sizeof(qint16)
+        + (MAX_CH_CNT - 1) * ChannelGapBytes;
+
     QVector<QVector<double>> vf8VoltageCh;
     QByteArray DataBuffer;
 signals:
@@ -62,7 +69,7 @@ private slots:
     void processPendingDatagrams();
 public slots:
     void UdpDataReadyWaitTimerOut();
-    void UdpDataFormBufToChannels(QVector<QVector<double>> &vf8VoltageCh, QByteArray  DataBuf);
+    void UdpDataFormBufToChannels(QVector<QVector<double>> &channels, const QByteArray &frame);
 
 private:
     QUdpSocket *m_udpSocket;
@@ -71,33 +78,6 @@ private:
     quint16 m_localPort;
     bool m_isConnected;
 
-    enum DATA_INDEX
-    {
-        CH1_DATA_START_INDEX = 258,
-         CH1_DATA_END_INDEX = 8449,
-         CH2_DATA_START_INDEX = 8452,
-         CH2_DATA_END_INDEX = 16643,
-         CH3_DATA_START_INDEX = 16646,
-         CH3_DATA_END_INDEX = 24837,
-         CH4_DATA_START_INDEX = 24840,
-         CH4_DATA_END_INDEX = 33031,
-         CH5_DATA_START_INDEX = 33034,
-         CH5_DATA_END_INDEX = 41225,
-         CH6_DATA_START_INDEX = 41228,
-         CH6_DATA_END_INDEX = 49419,
-         CH7_DATA_START_INDEX = 49422,
-         CH7_DATA_END_INDEX = 57613,
-         CH8_DATA_START_INDEX = 57616,
-         CH8_DATA_END_INDEX = 65807,
-         CH9_DATA_START_INDEX = 65810,
-         CH9_DATA_END_INDEX = 74001,
-         CH10_DATA_START_INDEX = 74004,
-         CH10_DATA_END_INDEX = 82195,
-         CH11_DATA_START_INDEX = 82198,
-         CH11_DATA_END_INDEX = 90389,
-         CH12_DATA_START_INDEX = 90392,
-         CH12_DATA_END_INDEX = 98583,
-    };
 };
 
 #endif // UDPDATA_H

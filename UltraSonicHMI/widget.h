@@ -6,7 +6,6 @@
 #include<QSerialPort>
 #include<qcustomplot.h>
 #include"SonicLaunchCfg.h"
-#include <fftw3.h>
 #include <QtWidgets/QGraphicsView>
 
 
@@ -86,7 +85,7 @@ public:
     QByteArray _rSegyArray;
 
     QVector<double> vf8VoltageChs[UdpData::MAX_CH_CNT];  // 创建包含 UdpData::MAX_CH_CNT 个QVector的数组
-    QStringList channelNames = {"通道1", "通道2", "通道3","通道3", "通道4", "通道5", "通道6", "通道7", "通道8","通道9", "通道10", "通道11", "通道12"};
+    QStringList channelNames = {"通道1", "通道2", "通道3", "通道4", "通道5", "通道6", "通道7", "通道8","通道9", "通道10", "通道11", "通道12"};
 
     QString StrBsacnRunInfo;
 
@@ -136,7 +135,7 @@ private slots:
     void on_pBtTriggerStop_clicked();
 
     void on_pB_FFT_Transform_clicked();
-    void FFT_Transform(QVector<double> OriginalDataIn, QVector<double>* TransformedOut);
+    QVector<double> FFT_Transform(const QVector<double> &samples);
     void FilterProcessing(QVector<double> FilterOriginalDataIn, QVector<double>* FilteredDataOut);
     void vSaveWaveformData(QString FileName);
     void on_pB_reload_file_released();
@@ -172,11 +171,6 @@ private:
     QCPAxisRect *axisRects12;
 
     /*FFT变换相关参数*/
-    fftw_plan mFftPlan;
-    double *mFftIn;
-    fftw_complex *mFftOut;
-    QVector<double> mFftIndices;
-
     // 假设这些结果变量已改为数组形式
     QVector<double> FFT_TransformedResults[UdpData::MAX_CH_CNT];
     /* FFT变换相关参数-END*/
@@ -212,33 +206,6 @@ private:
     QTimer      *UartToWifiDataReadyWaitTimer;
     QTimer      *ContinueTriggerTimer;
 
-    enum DATA_INDEX
-    {
-        CH1_DATA_START_INDEX = 258,
-         CH1_DATA_END_INDEX = 8449,
-         CH2_DATA_START_INDEX = 8452,
-         CH2_DATA_END_INDEX = 16643,
-         CH3_DATA_START_INDEX = 16646,
-         CH3_DATA_END_INDEX = 24837,
-         CH4_DATA_START_INDEX = 24840,
-         CH4_DATA_END_INDEX = 33031,
-         CH5_DATA_START_INDEX = 33034,
-         CH5_DATA_END_INDEX = 41225,
-         CH6_DATA_START_INDEX = 41228,
-         CH6_DATA_END_INDEX = 49419,
-         CH7_DATA_START_INDEX = 49422,
-         CH7_DATA_END_INDEX = 57613,
-         CH8_DATA_START_INDEX = 57616,
-         CH8_DATA_END_INDEX = 65807,
-         CH9_DATA_START_INDEX = 65810,
-         CH9_DATA_END_INDEX = 74001,
-         CH10_DATA_START_INDEX = 74004,
-         CH10_DATA_END_INDEX = 82195,
-         CH11_DATA_START_INDEX = 82198,
-         CH11_DATA_END_INDEX = 90389,
-         CH12_DATA_START_INDEX = 90392,
-         CH12_DATA_END_INDEX = 98583,
-    };
     QVector<uint8_t> vUdpRxdData;
 
     QVariant ShowQVariant[UdpData::MAX_CH_CNT];  // 创建包含12个QVariant的数组

@@ -1,4 +1,5 @@
 #include "udp_data.h"
+#include <QtEndian>
 
 UdpData::UdpData(QObject *parent) : QObject(parent),
     m_udpSocket(nullptr),
@@ -192,85 +193,23 @@ void UdpData::UdpDataReadyWaitTimerOut()
 }
 
 /*将接收的数据根据制定的协议映射到每个通道中*/
-void UdpData::UdpDataFormBufToChannels(QVector<QVector<double>> &vf8VoltageChTemp, QByteArray  DataBuf)
+void UdpData::UdpDataFormBufToChannels(QVector<QVector<double>> &channels, const QByteArray &frame)
 {
-    double f8Temp = 0.0;
-    uint32_t u4BuffSize = 0;
-    vf8VoltageChTemp.resize(UdpData::MAX_CH_CNT);
-
-    // 清零所有 QVector
-    for (int i = 0; i < UdpData::MAX_CH_CNT; ++i) {
-        vf8VoltageChTemp[i].clear();       // 清空内容
-        //vf8VoltageCh[i].squeeze();     // 释放未使用的内存（可选）
-    }
-
-    u4BuffSize = DataBuf.size();
-    if (u4BuffSize < (CH12_DATA_END_INDEX+1)) //检查接收的数据是否完成
-    {
+    channels.clear();
+    channels.resize(MAX_CH_CNT);
+    if (frame.size() < WaveformFrameBytes) {
         return;
     }
 
-    for(quint64 i = 0; i < u4BuffSize; i += 2)
-    {
-        /*强制转换成int型并偏移32768，全部到正值，再转成对应电压值 ，0~65535对应电压为0~3200mv 则每个ADC值对应0.04882887mv*/
-        int16_t u2Temp = 0;
-        int16_t u2Temp1 = 0;
-        int16_t u2Temp2 = 0;
-        if(i >= CH1_DATA_START_INDEX)
-        {
-          u2Temp = 0x00FF&((char)DataBuf.at(i));
-          u2Temp1 = (0xFF00&((char)DataBuf.at(i+1))<<8);
-          u2Temp2 = u2Temp|u2Temp1;
-          f8Temp = (double)((u2Temp2 + 32768) * 0.04882887);
-        }
-
-        if((i >= CH1_DATA_START_INDEX)&&(i <= CH1_DATA_END_INDEX))
-        {
-            vf8VoltageChTemp[CH1].append(f8Temp);
-        }
-        else if((i >= CH2_DATA_START_INDEX )&&(i <= CH2_DATA_END_INDEX))
-        {
-            vf8VoltageChTemp[CH2].append(f8Temp);
-        }
-        else if((i >= CH3_DATA_START_INDEX )&&(i <= CH3_DATA_END_INDEX))
-        {
-            vf8VoltageChTemp[CH3].append(f8Temp);
-        }
-        else if((i >= CH4_DATA_START_INDEX )&&(i <= CH4_DATA_END_INDEX))
-        {
-            vf8VoltageChTemp[CH4].append(f8Temp);
-        }
-        else if((i >= CH5_DATA_START_INDEX )&&(i <= CH5_DATA_END_INDEX))
-        {
-            vf8VoltageChTemp[CH5].append(f8Temp);
-        }
-        else if((i >= CH6_DATA_START_INDEX )&&(i <= CH6_DATA_END_INDEX))
-        {
-            vf8VoltageChTemp[CH6].append(f8Temp);
-        }
-        else if((i >= CH7_DATA_START_INDEX )&&(i <= CH7_DATA_END_INDEX))
-        {
-            vf8VoltageChTemp[CH7].append(f8Temp);
-        }
-        else if((i >= CH8_DATA_START_INDEX )&&(i <= CH8_DATA_END_INDEX))
-        {
-            vf8VoltageChTemp[CH8].append(f8Temp);
-        }
-        else if((i >= CH9_DATA_START_INDEX )&&(i <= CH9_DATA_END_INDEX))
-        {
-            vf8VoltageChTemp[CH9].append(f8Temp);
-        }
-        else if((i >= CH10_DATA_START_INDEX )&&(i <= CH10_DATA_END_INDEX))
-        {
-            vf8VoltageChTemp[CH10].append(f8Temp);
-        }
-        else if((i >= CH11_DATA_START_INDEX )&&(i <= CH11_DATA_END_INDEX))
-        {
-            vf8VoltageChTemp[CH11].append(f8Temp);
-        }
-        else if((i >= CH12_DATA_START_INDEX )&&(i <= CH12_DATA_END_INDEX))
-        {
-            vf8VoltageChTemp[CH12].append(f8Temp);
+    constexpr int bytesPerChannel = SamplesPerChannel * sizeof(qint16);
+    for (int ch = 0; ch < MAX_CH_CNT; ++ch) {
+        const char *channelData = frame.constData() + WaveformHeaderBytes
+            + ch * (bytesPerChannel + ChannelGapBytes);
+        auto &channel = channels[ch];
+        channel.resize(SamplesPerChannel);
+        for (int i = 0; i < SamplesPerChannel; ++i) {
+            const qint16 value = qFromLittleEndian<qint16>(channelData + i * sizeof(qint16));
+            channel[i] = (value + 32768) * 0.04882887;
         }
     }
 }

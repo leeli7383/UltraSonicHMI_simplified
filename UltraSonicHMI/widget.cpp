@@ -1,4 +1,7 @@
 ﻿#include "widget.h"
+#include <algorithm>
+#include <cmath>
+#include <fftw3.h>
 #include <ui/ui_widget.h>
 #include "vqcustomplot.h"
 #include<QSerialPortInfo>
@@ -48,7 +51,7 @@ using namespace std;
 /* FFt */
 #define AUDIBLE_RANGE_START 0
 #define AUDIBLE_RANGE_END   20000 /* very optimistic */
-#define SAMPLES_CNT 4096 //4096
+constexpr int SAMPLES_CNT = UdpData::SamplesPerChannel;
 //#define SAMPLE_FREQ 500000 //500000
 /* FFt */
 
@@ -595,6 +598,18 @@ void Widget::on_pBtCloseWindow_released()
 //对原始波形，傅里叶变换，滤波后波形 三种波形状态进行轮番变换
 void Widget::on_pB_FFT_Transform_clicked()
 {
+    for (const auto &samples : vf8VoltageChs) {
+        if (samples.size() < SAMPLES_CNT) {
+            QMessageBox::information(this, tr("提示"), tr("请先采集或加载完整波形。"));
+            return;
+        }
+    }
+
+    if (!(xAxisToTimeFactor > 0) || !std::isfinite(xAxisToTimeFactor)) {
+        QMessageBox::warning(this, tr("警告"), tr("采样间隔无效，请检查触发设置。"));
+        return;
+    }
+
     QString name = ui->pB_FFT_Transform->text();
     QPalette palette = ui->pB_FFT_Transform->palette();
 
@@ -606,27 +621,23 @@ void Widget::on_pB_FFT_Transform_clicked()
 
     if (name == "FFT关")
     {
-        // 设置偏移量，,滤除0点直流分量对最大值干扰
-        int offset = 1;
+        const double freqStep = 1000000.0 / (xAxisToTimeFactor * SAMPLES_CNT);
+        for (int ch = 0; ch < UdpData::MAX_CH_CNT; ++ch) {
+            FFT_TransformedResults[ch] = FFT_Transform(vf8VoltageChs[ch]);
+            if (FFT_TransformedResults[ch].isEmpty()) {
+                QMessageBox::warning(this, tr("警告"), tr("无法执行 FFT。"));
+                return;
+            }
+        }
 
         ui->pB_FFT_Transform->setText("FFT开");
-        palette.setColor(QPalette::Button, QColor(109,226,214)); //绿色
-
-        bool ok;
-        double SampleFrequency = 1000000000 / (data_packet->strDecimateSpan.toDouble(&ok)); //uint->Hz  获取用户设置的周期并转换成频率
-        double freqStep = SampleFrequency / (double)SAMPLES_CNT;
-
-        // 处理所有通道
-        for (int ch = 0; ch < UdpData::MAX_CH_CNT; ch++) {
-            // 执行FFT变换
-            FFT_Transform(vf8VoltageChs[ch], &FFT_TransformedResults[ch]);
-            ShowQVariant[ch].setValue(FFT_TransformedResults[ch]);
-
-            // 查找最大值
-            auto maxIt = std::max_element(FFT_TransformedResults[ch].begin() + offset,
-                                         FFT_TransformedResults[ch].end());
-            double index = std::distance(FFT_TransformedResults[ch].begin(), maxIt);
-            double maxValue = *maxIt;
+        palette.setColor(QPalette::Button, QColor(109, 226, 214));
+        for (int ch = 0; ch < UdpData::MAX_CH_CNT; ++ch) {
+            const auto &spectrum = FFT_TransformedResults[ch];
+            ShowQVariant[ch].setValue(spectrum);
+            const auto maxIt = std::max_element(spectrum.cbegin() + 1, spectrum.cend());
+            const auto index = std::distance(spectrum.cbegin(), maxIt);
+            const double maxValue = *maxIt;
 
             // 生成标题字符串
             QString title = QString("频谱%1-主频:%2 Hz; Max:%3 mv")
@@ -717,37 +728,25 @@ void Widget::on_pB_FFT_Transform_clicked()
 }
 
 /*傅里叶变换处理函数*/
-void Widget::FFT_Transform(QVector<double> OriginalDataIn, QVector<double>* TransformedOut)
+QVector<double> Widget::FFT_Transform(const QVector<double> &samples)
 {
-    /* Set up FFT plan */
-    mFftIn = (double *)fftw_malloc(sizeof( double) * SAMPLES_CNT);
-    mFftOut = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * (SAMPLES_CNT / 2 + 1));
-    mFftPlan = fftw_plan_dft_r2c_1d(SAMPLES_CNT, mFftIn, mFftOut,FFTW_ESTIMATE);
-
-    memcpy(mFftIn, OriginalDataIn.data(), SAMPLES_CNT*sizeof(double));
-
-    fftw_execute(mFftPlan);
-
-    // 计算幅度谱   幅值处理方式：amp幅值Amplitude,ampDB为幅值加上分贝,mag为幅度谱，只是对fft结果取模，
-    QVector<double> MagnitudeSpectrum(SAMPLES_CNT / 2 + 1);
-    QVector<double> AmplitudeSpectrum(SAMPLES_CNT / 2 + 1);
-    for (int i = 0; i < SAMPLES_CNT / 2 + 1; ++i)
-    {
-        MagnitudeSpectrum[i] = sqrt(mFftOut[i][0] * mFftOut[i][0] + mFftOut[i][1] * mFftOut[i][1]);
-        if(i == 0)
-        {
-            AmplitudeSpectrum[i] = MagnitudeSpectrum[i] / SAMPLES_CNT;
-        }
-        else if(i == SAMPLES_CNT/2)
-        {
-            AmplitudeSpectrum[i] = MagnitudeSpectrum[i] / SAMPLES_CNT;
-        }
-        else
-        {
-            AmplitudeSpectrum[i] = MagnitudeSpectrum[i] / (SAMPLES_CNT/2);
-        }
+    double input[SAMPLES_CNT];
+    fftw_complex output[SAMPLES_CNT / 2 + 1];
+    std::copy_n(samples.constData(), SAMPLES_CNT, input);
+    fftw_plan plan = fftw_plan_dft_r2c_1d(SAMPLES_CNT, input, output, FFTW_ESTIMATE);
+    if (!plan) {
+        return {};
     }
-    TransformedOut->append(AmplitudeSpectrum);  //将AmplitudeSpectrum赋值给TransformedOut
+
+    fftw_execute(plan);
+    fftw_destroy_plan(plan);
+
+    QVector<double> spectrum(SAMPLES_CNT / 2 + 1);
+    for (int i = 0; i < spectrum.size(); ++i) {
+        const int scale = (i == 0 || i == SAMPLES_CNT / 2) ? SAMPLES_CNT : SAMPLES_CNT / 2;
+        spectrum[i] = std::hypot(output[i][0], output[i][1]) / scale;
+    }
+    return spectrum;
 }
 
 /*对采集的12个通道波形进行滤波处理*/
@@ -868,15 +867,20 @@ void Widget::on_pB_reload_file_released()
         return;
     }
 
-    const QByteArray frame = file.readAll();
-    if (file.error() != QFileDevice::NoError || frame.size() <= CH12_DATA_END_INDEX) {
+    const QByteArray frame = file.read(UdpData::WaveformFrameBytes);
+    if (file.error() != QFileDevice::NoError || frame.size() < UdpData::WaveformFrameBytes) {
         QMessageBox::warning(this, tr("警告"), tr("加载文件异常！"));
         return;
     }
 
     QVector<QVector<double>> voltages;
     udp_ultrasnoic_master->UdpDataFormBufToChannels(voltages, frame);
-    const uint32_t offset = AppConfig::u4ZeroModify / (AppConfig::u4DecimateSpanCH00 * 40);
+    const quint64 interval = 40ull * AppConfig::u4DecimateSpanCH00;
+    const int offset = interval == 0 ? 0 : AppConfig::u4ZeroModify / interval;
+    ui->pB_FFT_Transform->setText(QStringLiteral("FFT关"));
+    QPalette palette = ui->pB_FFT_Transform->palette();
+    palette.setColor(QPalette::Button, Qt::gray);
+    ui->pB_FFT_Transform->setPalette(palette);
     for (int i = 0; i < UdpData::MAX_CH_CNT; ++i) {
         vf8VoltageChs[i] = voltages[i];
         vf8VoltageChs[i].insert(0, offset, 1600.0);

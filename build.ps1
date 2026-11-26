@@ -103,6 +103,9 @@ try {
 
     $qtConfig = Join-Path $buildDir 'qt.conf'
     Set-Content -LiteralPath $qtConfig -Encoding ascii -Value '[Paths]', 'Plugins=.'
+
+    $example = Join-Path $PSScriptRoot 'examples\ultrasonic-demo.hex'
+    Copy-RuntimeFile $example (Join-Path $buildDir 'ultrasonic-demo.hex')
     Write-Host "Built $executable"
 
     if ($Run) {

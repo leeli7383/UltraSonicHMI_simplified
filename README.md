@@ -31,14 +31,14 @@ python -m aqt install-tool windows desktop tools_mingw81 qt.tools.win64_mingw810
 
 ## 构建与运行
 
-在已激活的 PowerShell 中执行下面的命令。脚本在独立构建目录生成 qmake 产物，并为启动设置 Qt、MinGW 和 FFTW 的 DLL 搜索路径。
+在已激活的 PowerShell 中执行下面的命令。脚本在独立构建目录生成 qmake 产物，并将 Qt、MinGW 和 FFTW 运行文件复制到可执行文件同目录。
 
 ```powershell
 .\build.ps1
 .\build.ps1 -Run
 ```
 
-默认生成 `build/release/UltraSonicHMI.exe`。可用 `.\build.ps1 -Configuration Debug` 生成调试版，或加上 `-Jobs 2` 减少并发编译。已有相同版本的 Qt 和 MinGW 时，可通过 `-QtRoot` 指定同时包含 `5.15.2` 和 `Tools` 的 SDK 目录。建议每次用 `-Run` 启动，以便加载环境中的 DLL。
+默认生成 `build/release/UltraSonicHMI.exe`。可用 `.\build.ps1 -Configuration Debug` 生成调试版，或加上 `-Jobs 2` 减少并发编译。已有相同版本的 Qt 和 MinGW 时，可通过 `-QtRoot` 指定同时包含 `5.15.2` 和 `Tools` 的 SDK 目录。构建完成后可以直接双击 exe。移动程序时请保留相邻的 DLL、Qt 插件目录和 `qt.conf`。
 
 使用 Qt Creator 时，可从已激活的 Conda 环境打开 `UltraSonicHMI/UltraSonicHMI.pro`，为其选择 Qt 5.15.2 / MinGW 8.1 x64 Kit 并使用独立构建目录。若 Creator 独立启动，可在 qmake 参数中通过 `FFTW_PREFIX` 指定 Conda 环境目录，同时在运行环境的 `PATH` 中加入该目录下的 `Library/bin`。
 

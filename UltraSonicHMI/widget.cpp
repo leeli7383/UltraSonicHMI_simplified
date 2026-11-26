@@ -856,28 +856,32 @@ void Widget::vSaveWaveformData(QString FileName)
 /*对当前的保存波形的波形HEX文件进行恢复显示*/
 void Widget::on_pB_reload_file_released()
 {
-    QVector<QVector<double>> voltages;
-    UdpDataReadGramBuf.clear();
-    UdpDataReadGramBuf = vReadWaveformData();/*对采集的12个通道波形数据进行加载读取*/
-    if(UdpDataReadGramBuf.size() <= CH12_DATA_END_INDEX)
-    {
-        QMessageBox::warning(this, u8"警告", u8"加载文件异常！", u8"关闭");
+    const QString path = QFileDialog::getOpenFileName(
+        this, tr("导入历史波形文件"), qApp->applicationDirPath(), tr("历史波形 (*.hex)"));
+    if (path.isEmpty()) {
+        return;
     }
-    else
-    {
-       udp_ultrasnoic_master->UdpDataFormBufToChannels(voltages, UdpDataReadGramBuf);
-       /*计算声时修正偏移点数*/
-       uint32_t u4ModifyCnt = static_cast<uint32_t>(AppConfig::u4ZeroModify / (AppConfig::u4DecimateSpanCH00 * 40));
-       // 处理代码
-       for (int i = 0; i < UdpData::MAX_CH_CNT; ++i)
-       {
-           ShowQVariant[i].setValue(voltages[i]);
-           QVector<double> modifiedData = ShowQVariant[i].value<QVector<double>>();
-           modifiedData.insert(0, u4ModifyCnt, 1600.0);
-           ShowQVariant[i].setValue(modifiedData);
-           vf8VoltageChs[i] = modifiedData;
-           emit RxScopeAll(i+1, ShowQVariant[i], channelNames[i], xAxisToTimeFactor, vQCustomPlot::ORIGINAL);
-       }
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        QMessageBox::critical(this, tr("提示"), tr("无法打开该文件"));
+        return;
+    }
+
+    const QByteArray frame = file.readAll();
+    if (file.error() != QFileDevice::NoError || frame.size() <= CH12_DATA_END_INDEX) {
+        QMessageBox::warning(this, tr("警告"), tr("加载文件异常！"));
+        return;
+    }
+
+    QVector<QVector<double>> voltages;
+    udp_ultrasnoic_master->UdpDataFormBufToChannels(voltages, frame);
+    const uint32_t offset = AppConfig::u4ZeroModify / (AppConfig::u4DecimateSpanCH00 * 40);
+    for (int i = 0; i < UdpData::MAX_CH_CNT; ++i) {
+        vf8VoltageChs[i] = voltages[i];
+        vf8VoltageChs[i].insert(0, offset, 1600.0);
+        ShowQVariant[i].setValue(vf8VoltageChs[i]);
+        emit RxScopeAll(i + 1, ShowQVariant[i], channelNames[i], xAxisToTimeFactor, vQCustomPlot::ORIGINAL);
     }
 }
 
@@ -969,32 +973,6 @@ void Widget::on_pBtSaveData_clicked()
 #endif
     }
 #endif
-}
-
-/*对采集的12个通道波形数据进行加载读取*/
-QByteArray  Widget::vReadWaveformData(void)
-{
-    QByteArray byteArray;
-    QString dirpath = QFileDialog::getOpenFileName(this,QStringLiteral("导入历史波形文件"),
-                                                   qApp->applicationDirPath(), QString(tr("File (*.hex)")));
-    if(dirpath!=NULL)
-    {
-        QFile file(dirpath);
-        if (!file.open(QIODevice::ReadOnly))
-        {
-            QMessageBox::critical(NULL,
-                                  QStringLiteral("提示"),
-                                  QStringLiteral("无法打开该文件"));
-            return byteArray;
-        }
-        else
-        {
-            // 读取文件的所有内容
-            byteArray = file.readAll();
-            file.close();
-            return byteArray;
-        }
-    }
 }
 
 QVector<float> Widget::convertToFloatVector(const QVector<double>& doubleVec)

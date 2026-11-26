@@ -7,6 +7,7 @@ Makefile
 Makefile.*
 .qmake.stash
 .qmake.cache
+/aqtinstall.log
 *.pro.user*
 ui_*.h
 moc_*.cpp

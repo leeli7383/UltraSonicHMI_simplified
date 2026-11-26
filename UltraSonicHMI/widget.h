@@ -82,7 +82,6 @@ public:
     QByteArray message;
     QString getIP();
     QByteArray  UdpDataWriteGramBuf; //给写波形存储文件提供缓冲数据
-    QByteArray  UdpDataReadGramBuf;  //给读波形存储文件提供缓冲数据
     QByteArray DataUartToWifiBuf;
     QByteArray _rSegyArray;
 
@@ -140,7 +139,6 @@ private slots:
     void FFT_Transform(QVector<double> OriginalDataIn, QVector<double>* TransformedOut);
     void FilterProcessing(QVector<double> FilterOriginalDataIn, QVector<double>* FilteredDataOut);
     void vSaveWaveformData(QString FileName);
-    QByteArray vReadWaveformData(void);
     void on_pB_reload_file_released();
 
     void on_pB_Screenshot_clicked();

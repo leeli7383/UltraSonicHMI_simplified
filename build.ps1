@@ -13,6 +13,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Copy-RuntimeFile([string]$Source, [string]$Destination) {
+    $file = Get-Item -LiteralPath $Source
+    $current = Get-Item -LiteralPath $Destination -ErrorAction SilentlyContinue
+    if (-not $current -or $file.Length -ne $current.Length -or
+        $file.LastWriteTimeUtc -ne $current.LastWriteTimeUtc) {
+        Copy-Item -LiteralPath $file.FullName -Destination $Destination -Force
+    }
+}
+
 if (-not $env:CONDA_PREFIX) {
     throw 'Activate the ultrasonic-hmi Conda environment before building.'
 }
@@ -69,12 +78,37 @@ try {
     if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
         throw "Build output is missing: $executable"
     }
+    $qtLibraries = 'Qt5Core.dll', 'Qt5Gui.dll', 'Qt5Network.dll',
+        'Qt5PrintSupport.dll', 'Qt5SerialPort.dll', 'Qt5Widgets.dll'
+    foreach ($library in $qtLibraries) {
+        Copy-RuntimeFile (Join-Path $qtBin $library) (Join-Path $buildDir $library)
+    }
+
+    $mingwLibraries = 'libgcc_s_seh-1.dll', 'libstdc++-6.dll', 'libwinpthread-1.dll'
+    foreach ($library in $mingwLibraries) {
+        Copy-RuntimeFile (Join-Path $mingwBin $library) (Join-Path $buildDir $library)
+    }
+
+    Copy-RuntimeFile $fftwDll (Join-Path $buildDir 'fftw3.dll')
+    $vcRuntime = Join-Path (Split-Path -Parent $fftwDll) 'vcruntime140.dll'
+    Copy-RuntimeFile $vcRuntime (Join-Path $buildDir 'vcruntime140.dll')
+
+    $qtPlugins = Join-Path (Split-Path -Parent $qtBin) 'plugins'
+    foreach ($plugin in 'platforms\qwindows.dll', 'printsupport\windowsprintersupport.dll',
+                        'styles\qwindowsvistastyle.dll') {
+        $destination = Join-Path $buildDir $plugin
+        New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+        Copy-RuntimeFile (Join-Path $qtPlugins $plugin) $destination
+    }
+
+    $qtConfig = Join-Path $buildDir 'qt.conf'
+    Set-Content -LiteralPath $qtConfig -Encoding ascii -Value '[Paths]', 'Plugins=.'
     Write-Host "Built $executable"
 
     if ($Run) {
         $process = Start-Process -FilePath $executable -WorkingDirectory $buildDir -Wait -PassThru
         if ($process.ExitCode -ne 0) {
-            throw "UltraSonicHMI exited with code $($process.ExitCode)."
+            throw ('UltraSonicHMI exited with code 0x{0:X8}.' -f $process.ExitCode)
         }
     }
 } finally {
